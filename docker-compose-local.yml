@@ -1,6 +1,6 @@
 services:
   db:
-    image: 'postgres:latest'
+    image: 'postgres:16'
     container_name: postgres_theater
     env_file:
       - .env
@@ -9,6 +9,7 @@ services:
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_theater_data:/var/lib/postgresql/data/
+      #/var/lib/postgresql/MAJOR/docker
     networks:
       - theater_network
     healthcheck:
