@@ -13,15 +13,17 @@ from crud.movies import (
     get_or_create_language,
     check_duplicate_movie,
     get_movie_by_id,
-    delete_movie, get_movies_list, patch_movie, get_or_create_country
+    delete_movie,
+    get_movies_list,
+    patch_movie,
+    get_or_create_country,
 )
 from database import get_db, MovieModel
 from schemas.movies import (
     MovieListResponseSchema,
     MovieCreateSchema,
-    MovieCreateResponseSchema
+    MovieCreateResponseSchema,
 )
-
 
 router = APIRouter()
 
@@ -30,7 +32,7 @@ router = APIRouter()
 async def get_all_movies(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=20)
+    per_page: int = Query(10, ge=1, le=20),
 ):
 
     skip = (page - 1) * per_page
@@ -64,16 +66,18 @@ async def get_all_movies(
 
 
 @router.post("/movies/", response_model=MovieCreateResponseSchema)
-async def create_movie(movie: MovieCreateSchema, db: AsyncSession = Depends(get_db),):
+async def create_movie(
+    movie: MovieCreateSchema,
+    db: AsyncSession = Depends(get_db),
+):
     await check_duplicate_movie(movie_name=movie.name, movie_data=movie.date, db=db)
 
     country = await get_or_create_country(country_code=movie.country, db=db)
 
-
-    genre_task = [
+    genres_task = [
         get_or_create_genre(genre_name=genre, db=db) for genre in movie.genres
     ]
-    genres = await asyncio.gather(*genre_task)
+    genres = await asyncio.gather(*genres_task)
 
     actor_task = [
         get_or_create_actor(actor_name=actor, db=db) for actor in movie.actors
@@ -81,7 +85,8 @@ async def create_movie(movie: MovieCreateSchema, db: AsyncSession = Depends(get_
     actors = await asyncio.gather(*actor_task)
 
     language_task = [
-        get_or_create_language(language_name=language, db=db) for language in movie.languages
+        get_or_create_language(language_name=language, db=db)
+        for language in movie.languages
     ]
     languages = await asyncio.gather(*language_task)
 
@@ -101,15 +106,20 @@ async def create_movie(movie: MovieCreateSchema, db: AsyncSession = Depends(get_
 
     db.add(db_movie)
     await db.commit()
-    stmt = select(MovieModel).where(MovieModel.id == db_movie.id).options(
-        selectinload(MovieModel.country),
-        selectinload(MovieModel.genres),
-        selectinload(MovieModel.actors),
-        selectinload(MovieModel.languages)
+    stmt = (
+        select(MovieModel)
+        .where(MovieModel.id == db_movie.id)
+        .options(
+            selectinload(MovieModel.country),
+            selectinload(MovieModel.genres),
+            selectinload(MovieModel.actors),
+            selectinload(MovieModel.languages),
+        )
     )
     result = await db.execute(stmt)
     db_movie_eager = result.scalar_one()
     return db_movie_eager
+
 
 @router.get("/movies/{movie_id}/", response_model=schemas.MovieDetailSchema)
 async def get_movie_detail(id: int, db: AsyncSession = Depends(get_db)):
@@ -126,8 +136,7 @@ async def delete_movie_endpoint(movie_id: int, db: AsyncSession = Depends(get_db
 async def patch_movie_endpoint(
     movie_id: int,
     movie: schemas.MovieUpdateInSchema,
-    db: AsyncSession = Depends(get_db)
-
+    db: AsyncSession = Depends(get_db),
 ):
     db_movie = await get_movie_by_id(movie_id=movie_id, db=db)
 
