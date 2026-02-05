@@ -1,23 +1,21 @@
+import asyncio
 import math
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.util.concurrency import asyncio
 
 import schemas.movies
 from crud.movies import (
-    create_country,
     get_or_create_genre,
     get_or_create_actor,
     get_or_create_language,
     check_duplicate_movie,
     get_movie_by_id,
-    delete_movie, get_movies_list, patch_movie
+    delete_movie, get_movies_list, patch_movie, get_or_create_country
 )
 from database import get_db, MovieModel
-from database.models import CountryModel
 from schemas.movies import (
     MovieListResponseSchema,
     MovieCreateSchema,
@@ -69,22 +67,23 @@ async def get_all_movies(
 async def create_movie(movie: MovieCreateSchema, db: AsyncSession = Depends(get_db),):
     await check_duplicate_movie(movie_name=movie.name, movie_data=movie.date, db=db)
 
-    country_obj = await db.scalar(select(CountryModel).where(CountryModel.code == movie.country))
-    if not country_obj:
-        country_schema = schemas.CountryInSchema(
-            code=movie.country,
-            name=None
-        )
-        country_obj = await create_country(db=db, country=country_schema)
+    country = await get_or_create_country(country_code=movie.country, db=db)
 
-    tasks_genre = [get_or_create_genre(genre_name=genre) for genre in movie.genres]
-    genres = await asyncio.gather(*tasks_genre)
 
-    tasks_actors = [get_or_create_actor(actor_name=actor) for actor in movie.actors]
-    actors = await asyncio.gather(*tasks_actors)
+    genre_task = [
+        get_or_create_genre(genre_name=genre, db=db) for genre in movie.genres
+    ]
+    genres = await asyncio.gather(*genre_task)
 
-    tasks_languages = [get_or_create_language(language_name=language) for language in movie.languages]
-    languages = await asyncio.gather(*tasks_languages)
+    actor_task = [
+        get_or_create_actor(actor_name=actor, db=db) for actor in movie.actors
+    ]
+    actors = await asyncio.gather(*actor_task)
+
+    language_task = [
+        get_or_create_language(language_name=language, db=db) for language in movie.languages
+    ]
+    languages = await asyncio.gather(*language_task)
 
     db_movie = MovieModel(
         name=movie.name,
@@ -94,7 +93,7 @@ async def create_movie(movie: MovieCreateSchema, db: AsyncSession = Depends(get_
         status=movie.status,
         budget=movie.budget,
         revenue=movie.revenue,
-        country=country_obj,
+        country=country,
         genres=genres,
         actors=actors,
         languages=languages,

@@ -10,14 +10,16 @@ from database.models import (
     ActorModel,
     LanguageModel
 )
-from database.session_postgresql import AsyncPostgresqlSessionLocal
 from sqlalchemy import select
 import datetime
 from fastapi import HTTPException
 
 
 async def get_movies_list(db: AsyncSession, skip: int = 1, limit: int = 10):
-    return (await (db.scalars(select(MovieModel).order_by(desc(MovieModel.id)).offset(skip).limit(limit)))).all()
+    movies = (await (db.scalars(select(MovieModel).order_by(desc(MovieModel.id)).offset(skip).limit(limit)))).all()
+    if movies is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return movies
 
 
 async def create_country(db: AsyncSession, country: schemas.CountryInSchema):
@@ -65,20 +67,42 @@ async def create_language(db: AsyncSession, language: schemas.LanguageInSchema):
     return db_language
 
 
-async def get_or_create_genre(genre_name: str):
-    async with AsyncPostgresqlSessionLocal() as db:
+# async def get_or_create_genre(genre_name: str):
+#     async with AsyncPostgresqlSessionLocal() as db:
+#         genre_obj = await db.scalar(select(GenreModel).where(GenreModel.name == genre_name))
+#         if not genre_obj:
+#             genre_schema = schemas.GenreInSchema(
+#                 name=genre_name
+#             )
+#             genre_obj = await create_genre(db, genre_schema)
+#             return genre_obj
+#         return genre_obj
+
+async def get_or_create_country(country_code, db: AsyncSession):
+        country_obj = await db.scalar(select(CountryModel).where(CountryModel.code == country_code))
+        if not country_obj:
+            country_schema = schemas.CountryInSchema(
+                code=country_code,
+                name=None
+            )
+            country_obj = await create_country(db=db, country=country_schema)
+            return country_obj
+        return country_obj
+
+
+async def get_or_create_genre(genre_name, db: AsyncSession):
         genre_obj = await db.scalar(select(GenreModel).where(GenreModel.name == genre_name))
         if not genre_obj:
-            genre_schema = schemas.GenreInSchema(
-                name=genre_name
-            )
-            genre_obj = await create_genre(db, genre_schema)
+           genre_schema = schemas.GenreInSchema(
+               name=genre_name
+           )
+           genre_obj = await create_genre(db, genre_schema)
+           return genre_obj
+        else:
             return genre_obj
-        return genre_obj
 
 
-async def get_or_create_actor(actor_name: str):
-    async with AsyncPostgresqlSessionLocal() as db:
+async def get_or_create_actor(actor_name, db: AsyncSession):
         actor_obj = await db.scalar(select(ActorModel).where(ActorModel.name == actor_name))
         if not actor_obj:
             actor_schema = schemas.ActorInSchema(
@@ -86,11 +110,11 @@ async def get_or_create_actor(actor_name: str):
             )
             actor_obj = await create_actor(db, actor_schema)
             return actor_obj
-        return actor_obj
+        else:
+            return actor_obj
 
 
-async def get_or_create_language(language_name: str):
-    async with AsyncPostgresqlSessionLocal() as db:
+async def get_or_create_language(language_name, db: AsyncSession):
         language_obj = await db.scalar(select(LanguageModel).where(LanguageModel.name == language_name))
         if not language_obj:
             language_schema = schemas.LanguageInSchema(
@@ -98,7 +122,34 @@ async def get_or_create_language(language_name: str):
             )
             language_obj = await create_language(db, language_schema)
             return language_obj
-        return language_obj
+        else:
+            return language_obj
+
+
+
+
+# async def get_or_create_actor(actor_name: str):
+#     async with AsyncPostgresqlSessionLocal() as db:
+#         actor_obj = await db.scalar(select(ActorModel).where(ActorModel.name == actor_name))
+#         if not actor_obj:
+#             actor_schema = schemas.ActorInSchema(
+#                 name=actor_name
+#             )
+#             actor_obj = await create_actor(db, actor_schema)
+#             return actor_obj
+#         return actor_obj
+#
+#
+# async def get_or_create_language(language_name: str):
+#     async with AsyncPostgresqlSessionLocal() as db:
+#         language_obj = await db.scalar(select(LanguageModel).where(LanguageModel.name == language_name))
+#         if not language_obj:
+#             language_schema = schemas.LanguageInSchema(
+#                 name=language_name
+#             )
+#             language_obj = await create_language(db, language_schema)
+#             return language_obj
+#         return language_obj
 
 
 async def check_duplicate_movie(movie_name: str, movie_data: datetime.date, db: AsyncSession):
