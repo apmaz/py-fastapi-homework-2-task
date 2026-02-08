@@ -1,6 +1,6 @@
 import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from database.models import MovieStatusEnum
 
 
@@ -11,9 +11,6 @@ class MovieListItemSchema(BaseModel):
     score: float
     overview: str
 
-    class Config:
-        model_config = ConfigDict(from_attributes=True)
-
 
 class MovieListResponseSchema(BaseModel):
     movies: list[MovieListItemSchema]
@@ -23,50 +20,42 @@ class MovieListResponseSchema(BaseModel):
     total_items: int
 
 
-class CountryInSchema(BaseModel):
+class CountryCreateSchema(BaseModel):
     code: str
     name: str | None
 
 
-class CountryOutSchema(CountryInSchema):
+class CountryCreateResponseSchema(CountryCreateSchema):
     id: int
 
 
-class GenreInSchema(BaseModel):
+class GenreCreateSchema(BaseModel):
     name: str
 
 
-class GenreOutSchema(GenreInSchema):
+class GenreCreateResponseSchema(GenreCreateSchema):
     id: int
 
 
-class ActorInSchema(BaseModel):
+class ActorCreateSchema(BaseModel):
     name: str
 
 
-class ActorOutSchema(ActorInSchema):
+class ActorCreateResponseSchema(ActorCreateSchema):
     id: int
 
 
-class LanguageInSchema(BaseModel):
+class LanguageCreateSchema(BaseModel):
     name: str
 
 
-class LanguageOutSchema(LanguageInSchema):
+class LanguageCreateResponseSchema(LanguageCreateSchema):
     id: int
 
 
 class MovieCreateSchema(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     date: datetime.date
-
-    @field_validator("date")
-    @classmethod
-    def validate(cls, value: datetime.date) -> datetime.date:
-        if value > datetime.date.today() + datetime.timedelta(days=365):
-            raise ValueError("Date must not be more than one year in the future")
-        return value
-
     score: float = Field(default=0, ge=0, le=100)
     overview: str
     status: MovieStatusEnum
@@ -76,6 +65,13 @@ class MovieCreateSchema(BaseModel):
     genres: list[str]
     actors: list[str]
     languages: list[str]
+
+    @field_validator("date")
+    @classmethod
+    def validate(cls, value: datetime.date) -> datetime.date:
+        if value > datetime.date.today() + datetime.timedelta(days=365):
+            raise ValueError("Date must not be more than one year in the future")
+        return value
 
 
 class MovieCreateResponseSchema(BaseModel):
@@ -87,25 +83,45 @@ class MovieCreateResponseSchema(BaseModel):
     status: MovieStatusEnum
     budget: float
     revenue: float
-    country: CountryOutSchema
-    genres: list[GenreOutSchema]
-    actors: list[ActorOutSchema]
-    languages: list[LanguageOutSchema]
+    country: CountryCreateResponseSchema
+    genres: list[GenreCreateResponseSchema]
+    actors: list[ActorCreateResponseSchema]
+    languages: list[LanguageCreateResponseSchema]
 
 
 class MovieDetailSchema(MovieCreateResponseSchema):
     pass
 
 
-class MovieUpdateInSchema(BaseModel):
+class MovieUpdateSchema(BaseModel):
+    name: str | None = None
+    date: datetime.date | None = None
+    score: float | None = Field(default=None, ge=0, le=100)
+    overview: str | None = None
+    status: MovieStatusEnum | None = None
+    budget: float | None = Field(default=None, ge=0)
+    revenue: float | None = Field(default=None, ge=0)
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, value: datetime.date | None):
+        if value is None:
+            return value
+        if value > datetime.date.today() + datetime.timedelta(days=365):
+            raise ValueError("Date must not be more than one year in the future")
+        return value
+
+
+class MovieUpdateItemSchema(BaseModel):
     name: str
-    date: datetime.date | None
-    score: float | None
-    overview: str | None
-    status: MovieStatusEnum | None
-    budget: float | None
-    revenue: float | None
+    date: datetime.date
+    score: float
+    overview: str
+    status: MovieStatusEnum
+    budget: float
+    revenue: float
 
 
-class MovieUpdateOutSchema(MovieUpdateInSchema):
-    pass
+class MovieUpdateResponseSchema(BaseModel):
+    updated_movie: MovieUpdateItemSchema
+    detail: str
