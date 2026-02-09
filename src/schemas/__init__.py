@@ -9,5 +9,4 @@ from schemas.movies import (
     ActorCreateSchema,
     LanguageCreateSchema,
     MovieUpdateSchema,
-    MovieUpdateResponseSchema,
 )

@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.strategy_options import selectinload
@@ -16,18 +18,23 @@ import datetime
 from fastapi import HTTPException
 
 
-async def get_movies_list(db: AsyncSession, skip: int = 1, limit: int = 10):
-    movies = (
-        await db.scalars(
-            select(MovieModel).order_by(desc(MovieModel.id)).offset(skip).limit(limit)
-        )
-    ).all()
-    if movies is None:
-        raise HTTPException(status_code=404, detail="Movie not found")
+async def get_movies_list(
+    db: AsyncSession, skip: int = 0, limit: int = 10
+) -> Sequence[MovieModel]:
+    result = await db.scalars(
+        select(MovieModel).order_by(desc(MovieModel.id)).offset(skip).limit(limit)
+    )
+    movies = result.all()
+
+    if not movies:
+        raise HTTPException(status_code=404, detail="No movies found.")
+
     return movies
 
 
-async def create_country(db: AsyncSession, country: schemas.CountryCreateSchema):
+async def create_country(
+    db: AsyncSession, country: schemas.CountryCreateSchema
+) -> CountryModel:
     db_country = CountryModel(
         name=country.name,
         code=country.code,
@@ -44,7 +51,9 @@ async def create_country(db: AsyncSession, country: schemas.CountryCreateSchema)
     return db_country
 
 
-async def create_genre(db: AsyncSession, genre: schemas.GenreCreateSchema):
+async def create_genre(
+    db: AsyncSession, genre: schemas.GenreCreateSchema
+) -> GenreModel:
     db_genre = GenreModel(name=genre.name)
     db.add(db_genre)
 
@@ -58,7 +67,9 @@ async def create_genre(db: AsyncSession, genre: schemas.GenreCreateSchema):
     return db_genre
 
 
-async def create_actor(db: AsyncSession, actor: schemas.ActorCreateSchema):
+async def create_actor(
+    db: AsyncSession, actor: schemas.ActorCreateSchema
+) -> ActorModel:
     db_actor = ActorModel(name=actor.name)
     db.add(db_actor)
 
@@ -72,7 +83,9 @@ async def create_actor(db: AsyncSession, actor: schemas.ActorCreateSchema):
     return db_actor
 
 
-async def create_language(db: AsyncSession, language: schemas.LanguageCreateSchema):
+async def create_language(
+    db: AsyncSession, language: schemas.LanguageCreateSchema
+) -> LanguageModel:
     db_language = LanguageModel(name=language.name)
     db.add(db_language)
 
@@ -86,7 +99,7 @@ async def create_language(db: AsyncSession, language: schemas.LanguageCreateSche
     return db_language
 
 
-async def get_or_create_country(country_code, db: AsyncSession):
+async def get_or_create_country(country_code, db: AsyncSession) -> CountryModel:
     country_obj = await db.scalar(
         select(CountryModel).where(CountryModel.code == country_code)
     )
@@ -97,7 +110,7 @@ async def get_or_create_country(country_code, db: AsyncSession):
     return country_obj
 
 
-async def get_or_create_genre(genre_name, db: AsyncSession):
+async def get_or_create_genre(genre_name, db: AsyncSession) -> GenreModel:
     genre_obj = await db.scalar(select(GenreModel).where(GenreModel.name == genre_name))
     if not genre_obj:
         genre_schema = schemas.GenreCreateSchema(name=genre_name)
@@ -106,7 +119,7 @@ async def get_or_create_genre(genre_name, db: AsyncSession):
     return genre_obj
 
 
-async def get_or_create_actor(actor_name, db: AsyncSession):
+async def get_or_create_actor(actor_name, db: AsyncSession) -> ActorModel:
     actor_obj = await db.scalar(select(ActorModel).where(ActorModel.name == actor_name))
     if not actor_obj:
         actor_schema = schemas.ActorCreateSchema(name=actor_name)
@@ -115,7 +128,7 @@ async def get_or_create_actor(actor_name, db: AsyncSession):
     return actor_obj
 
 
-async def get_or_create_language(language_name, db: AsyncSession):
+async def get_or_create_language(language_name, db: AsyncSession) -> LanguageModel:
     language_obj = await db.scalar(
         select(LanguageModel).where(LanguageModel.name == language_name)
     )
@@ -128,7 +141,7 @@ async def get_or_create_language(language_name, db: AsyncSession):
 
 async def check_duplicate_movie(
     movie_name: str, movie_data: datetime.date, db: AsyncSession
-):
+) -> None:
     movie = await db.scalar(
         select(MovieModel).where(
             MovieModel.name == movie_name, MovieModel.date == movie_data
@@ -141,7 +154,7 @@ async def check_duplicate_movie(
         )
 
 
-async def get_movie_by_id(movie_id: int, db: AsyncSession):
+async def get_movie_by_id(movie_id: int, db: AsyncSession) -> MovieModel:
     stmt = (
         select(MovieModel)
         .where(MovieModel.id == movie_id)
@@ -165,7 +178,7 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession):
 async def create_movie(
     movie: schemas.MovieCreateSchema,
     db: AsyncSession,
-):
+) -> MovieModel:
     await check_duplicate_movie(movie_name=movie.name, movie_data=movie.date, db=db)
     country = await get_or_create_country(country_code=movie.country, db=db)
 
@@ -203,29 +216,27 @@ async def create_movie(
         await db.rollback()
         raise HTTPException(status_code=409, detail="Movie already exists.")
 
-    stmt = (
-        select(MovieModel)
-        .where(MovieModel.id == db_movie.id)
-        .options(
-            selectinload(MovieModel.country),
-            selectinload(MovieModel.genres),
-            selectinload(MovieModel.actors),
-            selectinload(MovieModel.languages),
-        )
+    await db.refresh(
+        db_movie,
+        attribute_names=[
+            "country",
+            "genres",
+            "actors",
+            "languages",
+        ],
     )
-    result = await db.execute(stmt)
-    db_movie = result.scalar_one()
+
     return db_movie
 
 
-async def delete_movie(movie: MovieModel, db: AsyncSession):
+async def delete_movie(movie: MovieModel, db: AsyncSession) -> None:
     await db.delete(movie)
     await db.commit()
 
 
 async def patch_movie(
     db_movie: MovieModel, db: AsyncSession, movie: schemas.MovieUpdateSchema
-):
+) -> MovieModel:
     for field, value in movie.model_dump(exclude_unset=True).items():
         setattr(db_movie, field, value)
 
@@ -233,8 +244,7 @@ async def patch_movie(
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
-        print(e)
-        raise
+        raise HTTPException(status_code=400, detail="Invalid input data.")
 
     await db.refresh(db_movie)
     return db_movie

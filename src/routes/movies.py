@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import schemas.movies
+import schemas.movies as schemas
 from crud.movies import (
     get_movie_by_id,
     delete_movie,
@@ -28,7 +28,7 @@ async def get_all_movies(
     limit = per_page
 
     movies_list = await get_movies_list(db=db, skip=skip, limit=limit)
-    total_items = (await db.scalars(select(func.count()).select_from(MovieModel))).one()
+    total_items = await db.scalar(select(func.count()).select_from(MovieModel))
     total_pages = math.ceil(total_items / per_page)
 
     if page > total_pages:
@@ -76,7 +76,6 @@ async def delete_movie_endpoint(movie_id: int, db: AsyncSession = Depends(get_db
 
 @router.patch(
     "/movies/{movie_id}/",
-    response_model=schemas.MovieUpdateResponseSchema,
     status_code=200,
 )
 async def patch_movie_endpoint(
@@ -85,5 +84,5 @@ async def patch_movie_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     db_movie = await get_movie_by_id(movie_id=movie_id, db=db)
-    updated_movie = await patch_movie(db_movie=db_movie, movie=movie, db=db)
-    return {"updated_movie": updated_movie, "detail": "Movie updated successfully."}
+    await patch_movie(db_movie=db_movie, movie=movie, db=db)
+    return {"detail": "Movie updated successfully."}

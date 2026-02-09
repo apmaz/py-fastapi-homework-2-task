@@ -110,18 +110,3 @@ class MovieUpdateSchema(BaseModel):
         if value > datetime.date.today() + datetime.timedelta(days=365):
             raise ValueError("Date must not be more than one year in the future")
         return value
-
-
-class MovieUpdateItemSchema(BaseModel):
-    name: str
-    date: datetime.date
-    score: float
-    overview: str
-    status: MovieStatusEnum
-    budget: float
-    revenue: float
-
-
-class MovieUpdateResponseSchema(BaseModel):
-    updated_movie: MovieUpdateItemSchema
-    detail: str
