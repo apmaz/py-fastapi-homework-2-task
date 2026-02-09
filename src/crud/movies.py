@@ -242,7 +242,7 @@ async def patch_movie(
 
     try:
         await db.commit()
-    except IntegrityError as e:
+    except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=400, detail="Invalid input data.")
 
